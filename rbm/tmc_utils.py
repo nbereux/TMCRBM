@@ -93,6 +93,7 @@ def loadTMCRBM2D(
     ep_max=100,
     PCA=True,
     direction=torch.tensor([0, 1], device=device, dtype=dtype),
+    nb_point_dim=torch.tensor([100, 100]),
     device=device,
     dtype=dtype,
 ):
@@ -109,6 +110,7 @@ def loadTMCRBM2D(
         UpdCentered=True,
         mb_s=mb_s,
         direction=direction,
+        nb_point_dim=nb_point_dim,
         num_pcd=num_pcd,
         PCA=PCA,
     )

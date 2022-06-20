@@ -382,6 +382,141 @@ class TMCRBM2D(RBM):
         self.p_m = torch.tensor(res / const, device=self.device, dtype=self.dtype)
         return square, self.p_m, self.w_hat_tmp, grad_pot, w_hat_dim
 
+    def SampleTMC1D(
+        self, n_sample: int, p_m: torch.Tensor, w_hat_b: torch.Tensor, region=None
+    ):
+        """
+        Sample the constraint from the reconstructed probability distribution
+        
+        p_m: the reconstructed distribution 
+        
+        w_hat_b: the discretization
+
+        n_sample: the number of samples to be generated
+
+        region: the region of the distribution to be sampled
+            
+        """
+        w_hat_b = w_hat_b.cpu().numpy()
+        p_m = p_m.cpu().numpy()
+        if region == None:
+            region = torch.zeros(2)
+            region[0] = w_hat_b.min()
+            region[1] = w_hat_b.max()
+        cdf = np.zeros(len(p_m) - 1)
+        for i in range(1, len(w_hat_b)):
+            cdf[i - 1] = simps(p_m[:i], w_hat_b[:i])
+
+        good_sample = torch.zeros(n_sample)
+        to_gen = n_sample
+        while to_gen > 0:
+            i = 0
+
+            sample = torch.rand(to_gen)
+            sample = sample.sort()[0]
+            for k in range(len(cdf) - 1):
+                while cdf[k + 1] > sample[i]:
+                    if w_hat_b[k] <= region[1] and w_hat_b[k] >= region[0]:
+                        sample[i] = w_hat_b[k]
+                    else:
+                        sample[i] = region[1] + 1
+                    i += 1
+                    if i == to_gen:
+                        break
+
+                if i == to_gen:
+                    break
+            good = sample[sample != (region[1] + 1)]
+            good_sample[
+                (n_sample - to_gen) : min(
+                    n_sample - to_gen + good.shape[0], good_sample.shape[0]
+                )
+            ] = good[: min(good.shape[0], good_sample.shape[0])]
+            to_gen -= good.shape[0]
+        return good_sample
+
+    def SampleTMC2D(self, n_sample, region=None):
+
+        if region == None:
+            region = torch.zeros(2, 2)
+            region[0, 0] = self.w_hat_tmp[0].min()
+            region[0, 1] = self.w_hat_tmp[0].max()
+            region[1, 0] = self.w_hat_tmp[1].min()
+            region[1, 1] = self.w_hat_tmp[1].max()
+
+        p_y = np.zeros(self.p_m.shape[0])
+        for i in range(1, len(p_y)):
+            p_y[i - 1] = simps(
+                torch.as_tensor(self.p_m[:, i]).cpu().numpy(),
+                torch.as_tensor(self.w_hat_tmp[0, :, i]).cpu().numpy(),
+            )
+        sample_y = self.SampleTMC1D(
+            n_sample,
+            torch.as_tensor(p_y),
+            torch.as_tensor(self.w_hat_tmp[1, 0, :]),
+            region=region[1],
+        )
+        sample_x = []
+        for i in range(len(sample_y)):
+            id_y = (torch.tensor(self.w_hat_tmp[1, 0, :]) >= sample_y[i]).nonzero(
+                as_tuple=True
+            )[0][0]
+            # print(id_y)
+            sample_x.append(
+                self.SampleTMC1D(
+                    1,
+                    torch.as_tensor(self.p_m[:, id_y] / p_y[id_y - 1]),
+                    torch.as_tensor(self.w_hat_tmp[0, :, 1]),
+                    region=region[0],
+                )[0]
+            )
+            # print(id_y,' ',sample_x[-1])
+        return torch.stack(sample_x).reshape(len(sample_x)), sample_y
+
+    def genDataTMC2D(self, n_sample, V, it_mcmc, region=None):
+        """
+        Generate data from the TMCRBM2D
+
+        myRBM: TMCRBM 
+
+        p_m: Tensor of shape ()
+        the reconstructed distribution
+
+        w_hat: Tensor of shape ()
+            the discretization
+
+        n_sample: int 
+        the number of samples to be generated
+
+        N: int
+            The constraint on the gaussian bath
+
+        V: Tensor of shape (Nv)
+            The projection vector from the dataset space to the constrained dimension
+
+        it_mcmc: int, default=30
+            The number of iterations of the mcmc algorithm
+
+        """
+        x_grid, y_grid = self.SampleTMC2D(n_sample, region=region)
+        w_hat_b = torch.tensor(
+            [x_grid.numpy(), y_grid.numpy()], device=self.device, dtype=self.dtype
+        )
+        vinit = torch.bernoulli(
+            torch.rand((self.Nv, n_sample), device=self.device, dtype=self.dtype)
+        )
+        n_chain = self.nb_chain
+        n_point = self.nb_point
+        self.nb_chain = 1
+        self.nb_point = n_sample
+        self.direction = self.direction.to(torch.long)
+        tmpv, _, _ = self.TMCSample(vinit, w_hat_b.cuda(), self.N, V, it_mcmc=it_mcmc)
+        self.nb_chain = n_chain
+        self.nb_point = n_point
+        tmpv = tmpv.reshape(self.Nv, n_sample)
+        si, mi, _, _, = self.Sampling(tmpv, it_mcmc=1)
+        return si, mi
+
     def fit_batch(self, X: torch.Tensor):
         """
         Fit the model to the minibatch

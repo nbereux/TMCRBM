@@ -72,7 +72,9 @@ def ComputeProbabilityTMC2D(
     N: int,
     nb_point_dim,
     border_length: float,
+    V_g: torch.Tensor,
     device: torch.device,
+    direction=torch.tensor([0, 1]),
     nDim=2,
     PCA=True,
     start=None,
@@ -80,11 +82,12 @@ def ComputeProbabilityTMC2D(
     myRBM.device = device
     myRBM.border_length = border_length
     myRBM.N = N
-    myRBM.nb_point = nb_point
+    myRBM.nb_point_dim = nb_point_dim
     myRBM.nb_chain = nb_chain
     myRBM.gibbs_steps = it_mcmc
     myRBM.it_mean = it_mean
-    V_g = myRBM.V0
+    myRBM.direction = direction
+    myRBM.V0 = V_g
     myRBM.PCA = PCA
 
     if not PCA:
@@ -106,9 +109,7 @@ def ComputeProbabilityTMC2D(
         for j in range(nb_point_dim[0]):
             y_grid.append(y_d[i])
     grid = torch.tensor([x_grid, y_grid], device=device)
-    w_hat = torch.zeros(
-        (myRBM.nDim, myRBM.nb_chain * myRBM.nb_point), device=myRBM.device
-    )
+    w_hat = torch.zeros((nDim, myRBM.nb_chain * myRBM.nb_point), device=myRBM.device)
     if start == None:
         start = torch.bernoulli(
             torch.rand(myRBM.Nv, nb_chain * nb_point, device=device)
@@ -116,6 +117,7 @@ def ComputeProbabilityTMC2D(
 
     myRBM.V0 = V_g
     myRBM.w_hat_b = grid
+    myRBM.limits = limits
     w_hat = torch.zeros((2, nb_chain * nb_point), device=device)
     for i in range(nb_point):
         for j in range(nb_chain):
