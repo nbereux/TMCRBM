@@ -1,5 +1,7 @@
 # Tethered Monte-Carlo Sampling for Restricted Boltzmann Machines
 
+Using the Tethered Monte-Carlo Sampling is an efficient method to train a Restricted Boltzmann Machine on a low-dimensional dataset. It can also be used to recover the free-energy profile of the RBM and improve the generation of new decorrelated samples on slow PCD trained models.
+
 This repository contains the material used to obtain the results in our [paper](https://arxiv.org/abs/2206.01310v1) 
 
 ## Prerequisites

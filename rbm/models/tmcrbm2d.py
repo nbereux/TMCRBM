@@ -461,7 +461,6 @@ class TMCRBM2D(RBM):
             id_y = (torch.tensor(self.w_hat_tmp[1, 0, :]) >= sample_y[i]).nonzero(
                 as_tuple=True
             )[0][0]
-            # print(id_y)
             sample_x.append(
                 self.SampleTMC1D(
                     1,
@@ -470,33 +469,22 @@ class TMCRBM2D(RBM):
                     region=region[0],
                 )[0]
             )
-            # print(id_y,' ',sample_x[-1])
         return torch.stack(sample_x).reshape(len(sample_x)), sample_y
 
     def genDataTMC2D(self, n_sample, V, it_mcmc, region=None):
         """
         Generate data from the TMCRBM2D
 
-        myRBM: TMCRBM 
-
-        p_m: Tensor of shape ()
-        the reconstructed distribution
-
-        w_hat: Tensor of shape ()
-            the discretization
-
         n_sample: int 
         the number of samples to be generated
 
-        N: int
-            The constraint on the gaussian bath
-
-        V: Tensor of shape (Nv)
+        V: Tensor of shape (Nv, Nv)
             The projection vector from the dataset space to the constrained dimension
 
         it_mcmc: int, default=30
             The number of iterations of the mcmc algorithm
 
+        region: Tensor of shape (2, 2), default=None
         """
         x_grid, y_grid = self.SampleTMC2D(n_sample, region=region)
         w_hat_b = torch.tensor(
