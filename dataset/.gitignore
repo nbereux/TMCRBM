@@ -2,3 +2,5 @@
 !.gitignore
 !data_2d3c_balanced_seed12.d
 !data_1d_2c_balanced.dat
+!1kg_xtrain.d
+
